@@ -3,9 +3,9 @@ from tkinter import messagebox, ttk
 import os
 import webbrowser
 from reportlab.pdfgen import canvas
-from supabase_config import supabase  # Configuración de Supabase
-import time  # Para generar el timestamp
-
+from supabase_config import supabase
+import time
+from datetime import datetime
 
 class App:
     def __init__(self, root):
@@ -96,7 +96,7 @@ class App:
         telefono_entry = tk.Entry(self.root)
         telefono_entry.grid(row=1, column=3, padx=5, pady=5, sticky=tk.EW)
 
-        tk.Label(self.root, text="Fecha de Entrega (YYYY-MM-DD):").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
+        tk.Label(self.root, text="Fecha de Entrega (dd/mm/aaaa):").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
         fecha_entry = tk.Entry(self.root)
         fecha_entry.grid(row=2, column=1, padx=5, pady=5, sticky=tk.EW)
 
@@ -166,40 +166,49 @@ class App:
         def guardar_pedido():
             cliente = cliente_entry.get()
             telefono = telefono_entry.get()
-            fecha_entrega = fecha_entry.get()
+            fecha_ingresada = fecha_entry.get()
             abono = abono_entry.get() or 0
 
+            # Convertir fecha al formato aaaa-mm-dd
+            try:
+                fecha_formateada = datetime.strptime(fecha_ingresada, "%d/%m/%Y").strftime("%Y-%m-%d")
+            except ValueError:
+                messagebox.showerror("Error", "La fecha debe estar en formato dd/mm/aaaa")
+                return
+
             productos = [tree.item(item, "values") for item in tree.get_children()]
-            if not (cliente and telefono and fecha_entrega and productos):
+            if not (cliente and telefono and fecha_formateada and productos):
                 messagebox.showerror("Error", "Completa todos los campos y agrega productos")
                 return
 
             # Generar el PDF y obtener su URL
-            pdf_url = generar_pdf(cliente, telefono, fecha_entrega, productos, abono)
+            pdf_url = generar_pdf(cliente, telefono, fecha_formateada, productos, abono)
 
             # Guardar los datos en la base de datos
             supabase.table("pedidos").insert({
                 "cliente": cliente,
                 "telefono": telefono,
-                "fecha_entrega": fecha_entrega,
+                "fecha_entrega": fecha_formateada,  # Formato aaaa-mm-dd
                 "pdf_url": pdf_url
             }).execute()
 
             messagebox.showinfo("Éxito", "Pedido guardado correctamente")
             self.mostrar_menu_principal()
 
-
         tk.Button(self.root, text="Guardar Pedido", command=guardar_pedido).grid(row=10, column=1, padx=5, pady=10, sticky=tk.EW)
         tk.Button(self.root, text="Volver", command=self.mostrar_menu_principal).grid(row=10, column=2, padx=5, pady=10, sticky=tk.EW)
 
         def generar_pdf(cliente, telefono, fecha_entrega, productos, abono):
+            
+            fecha_formateada = datetime.strptime(fecha_entrega, "%Y-%m-%d").strftime("%d/%m/%Y")
+            
             timestamp = int(time.time())
             pdf_filename = f"pedido_{cliente}_{timestamp}.pdf"
            
             c = canvas.Canvas(pdf_filename)
             c.drawString(100, 750, f"Cliente: {cliente}")
             c.drawString(100, 730, f"Teléfono: {telefono}")
-            c.drawString(100, 710, f"Fecha de Entrega: {fecha_entrega}")
+            c.drawString(100, 710, f"Fecha de Entrega: {fecha_formateada}")
 
             y = 680
             for producto in productos:
@@ -233,15 +242,35 @@ class App:
         self.limpiar_ventana()
         tk.Label(self.root, text="Lista de Pedidos", font=("Arial", 16)).pack(pady=20)
 
-        tree = ttk.Treeview(self.root, columns=("Pedido", "Cliente", "Fecha Entrega"), show="headings")
+        # Treeview con una nueva columna "Estado"
+        tree = ttk.Treeview(self.root, columns=("Pedido", "Cliente", "Fecha Entrega", "Estado"), show="headings")
         tree.heading("Pedido", text="Número Pedido")
         tree.heading("Cliente", text="Cliente")
         tree.heading("Fecha Entrega", text="Fecha Entrega")
+        tree.heading("Estado", text="Estado")
         tree.pack(fill=tk.BOTH, expand=True, pady=10)
 
+        # Cargar los pedidos desde la base de datos
         pedidos = supabase.table("pedidos").select("*").execute()
         for pedido in pedidos.data:
-            tree.insert("", "end", values=(pedido["id"], pedido["cliente"], pedido["fecha_entrega"]))
+            # Convertir la fecha al formato dd/mm/aaaa
+            fecha_formateada = datetime.strptime(pedido["fecha_entrega"], "%Y-%m-%d").strftime("%d/%m/%Y")
+            estado_texto = "Listo" if pedido["estado"] else "Pendiente"
+            # Insertar los datos en el Treeview
+            tree.insert("", "end", values=(pedido["id"], pedido["cliente"], fecha_formateada, estado_texto))
+
+        def marcar_como_listo():
+            selected_item = tree.selection()
+            if not selected_item:
+                messagebox.showerror("Error", "Selecciona un pedido para marcar como listo")
+                return
+
+            pedido_id = tree.item(selected_item, "values")[0]
+            # Actualizar el estado en la base de datos
+            supabase.table("pedidos").update({"estado": True}).eq("id", pedido_id).execute()
+
+            # Refrescar la lista de pedidos
+            self.mostrar_lista_pedidos()
 
         def abrir_pdf():
             selected_item = tree.selection()
@@ -256,6 +285,8 @@ class App:
             # Abre la URL en el navegador
             webbrowser.open(pdf_url)
 
+        # Botones para interactuar con los pedidos
+        tk.Button(self.root, text="Marcar como Listo", command=marcar_como_listo).pack(pady=10)
         tk.Button(self.root, text="Abrir PDF", command=abrir_pdf).pack(pady=10)
         tk.Button(self.root, text="Volver", command=self.mostrar_menu_principal).pack(pady=10)
 
