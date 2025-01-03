@@ -1,0 +1,7 @@
+from supabase import create_client
+
+# Configuración de Supabase
+SUPABASE_URL = "https://cbdedcprynclarzskred.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZGVkY3ByeW5jbGFyenNrcmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU4NjAzNjUsImV4cCI6MjA1MTQzNjM2NX0.-N0OVYKDRT5W96Due1Fq00O7z7kSTGDLYIRuxKkWtW0"
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
