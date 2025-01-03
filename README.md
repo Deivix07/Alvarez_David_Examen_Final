@@ -25,9 +25,10 @@ Desarrollada en Python con una interfaz gráfica (usando Tkinter) y un backend b
 ## Vista Previa 👀
 
 <div align="center">
-    <img src="view/cap01.PNG" width="400">
+    <img src="view/cap01.PNG" width="350">
     <img src="view/cap02.PNG" width="400">
-    <img src="view/cap02.PNG" width="400">
+    <img src="view/cap03.PNG" width="400">
+    <img src="view/cap04.PNG" width="380">
 </div>
 
 ## Requisitos ✅
